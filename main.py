@@ -2,6 +2,8 @@ import requests
 import json
 import time
 
+from loguru import logger
+
 
 API_URL = "https://dblp.org/search/publ/api"
 KEYWORDS = [
@@ -14,53 +16,58 @@ KEYWORDS = [
 
 # function that fetches data from dblp API
 def fetch_data_from_api(search_phrase: str, pages: int) -> dict:
-    offset = 0
+    offset = 1000
+    num_of_pages = pages
     data = []
+    sleep_interval_s = 60
 
-    pages = 0
-    while True:
-        url = API_URL + f"?q={search_phrase}&format=json"
-        response = None
-        try:
-            response = requests.get(url)
-        
-        except Exception as e:
-            print(str(e), response.json())
-        
-        if response.status_code != 200:
-            print("spie")
-            time.sleep(10)
-            continue
-
-        pages = int(response.json().get('result').get('hits').get('@total')) // 30
-        break
+    # when pages argument is equal to zero,
+    # use this request to count how many pages needs to be fetched
+    if pages == 0:
     
-    print("pages: ", pages)
-    for i in range(pages):
-        url = API_URL + f"?q={search_phrase}&f={offset + (30 * i)}&format=json"
+        while True:
+            url = API_URL + f"?q={search_phrase}&format=json"
+            response = None
+            try:
+                response = requests.get(url)
+            
+            except Exception as e:
+                print(str(e), response.json())
+            
+            if response.status_code != 200:
+                logger.info(f"Sleeping {sleep_interval_s} seconds...")
+                time.sleep(sleep_interval_s)
+                continue
+
+            num_of_pages = int(response.json().get('result').get('hits').get('@total')) // 1000
+            break
+    
+    # actual data fetching
+    logger.info(f"I will fetch {num_of_pages} pages.")
+    for i in range(num_of_pages):
+        url = API_URL + f"?q={search_phrase}&f={offset * i}&h={offset}&format=json"
         
         response = None
-
         try:
             response = requests.get(url)
+            print(response)
 
         except Exception as e:
-            print(str(e), response.json())
+            logger.error(str(e))
+            continue
     
         if response.status_code != 200:
             i = i - 1
-            print("spie")
-            time.sleep(10)
+            logger.info(f"Sleeping for {sleep_interval_s} seconds...")
+            time.sleep(sleep_interval_s)
             continue
         
-        print(response)
         data.append(response.json())
-        time.sleep(1)
     
     return data
 
 
-def raw_json_to_txt(keyword: str):
+def raw_json_to_preprocessed(keyword: str):
     data = []
     raw_json = None
 
@@ -101,7 +108,7 @@ def raw_json_to_txt(keyword: str):
             f.write(f'{json.dumps(d)}\n')
 
 
-def get_nodes_edges(fname: str):
+def preprocessed_to_txt(fname: str):
     authors = set()
     data = []
 
@@ -131,9 +138,9 @@ def get_nodes_edges(fname: str):
                 if pub_author == author:
                     continue
                 
-                xd = sorted([author, pub_author])
+                temp_list = sorted([author, pub_author])
                 data.append(
-                    f"{pub['year']},{xd[0]},{xd[1]}"
+                    f"{pub['year']},{temp_list[0]},{temp_list[1]}"
                 )
 
             temp.add(author)
@@ -151,21 +158,24 @@ def get_nodes_edges(fname: str):
     return counter
 
 
+    
+
+
 def main():
     for keyword in KEYWORDS:
-        print("robie tera ", keyword)
 
-        data = get_data(keyword, pages=20)
+        logger.info(f"Processing keyword: {keyword}")
+
+        data = fetch_data_from_api(keyword, 0)
         
         with open(f"{keyword}.json", 'w+') as f:
             json.dump(data, f, indent=4, default=str)
         
-        raw_json_to_txt(keyword)
+        raw_json_to_preprocessed(keyword)
 
         with open(f"{keyword}.txt", "w+") as f:
 
-            for k, v in get_nodes_edges(f'{keyword}_preprocessed.txt').items():
-                print(k, v)
+            for k, v in preprocessed_to_txt(f'{keyword}_preprocessed.txt').items():
                 f.write(f"{k},{v}\n")
 
 
