@@ -68,7 +68,12 @@ def raw_json_to_txt(keyword: str):
         raw_json = json.load(f)
     
     for page in raw_json:
-        for hit in page.get('result').get('hits').get('hit'):
+
+        hits = page.get('result').get('hits').get('hit')
+        if not hits:
+            continue
+
+        for hit in hits:
             info_field = hit.get('info')
             authors_field = info_field.get('authors')
 
@@ -147,7 +152,6 @@ def get_nodes_edges(fname: str):
 
 
 def main():
-
     for keyword in KEYWORDS:
         print("robie tera ", keyword)
 
@@ -167,4 +171,4 @@ def main():
 
 
 if __name__ == '__main__':
-    raw_json_to_txt('5G')
+    main()
